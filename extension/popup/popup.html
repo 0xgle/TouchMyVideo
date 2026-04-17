@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TouchMyVideo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0d0d0d;
+      --bg-card: #161616;
+      --bg-hover: #1e1e1e;
+      --border: rgba(255,255,255,0.07);
+      --border-hover: rgba(255,255,255,0.14);
+      --accent: #ff2323;
+      --accent-dim: rgba(255,35,35,0.12);
+      --accent-glow: rgba(255,35,35,0.25);
+      --text: #f0f0f0;
+      --text-sec: #888;
+      --text-muted: #555;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      width: 320px;
+      min-height: 200px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo {
+      width: 28px; height: 28px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Syne', sans-serif;
+      font-weight: 900;
+      font-size: 13px;
+      color: white;
+      flex-shrink: 0;
+    }
+    .app-name {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: -0.3px;
+    }
+    .app-name span { color: var(--accent); }
+
+    /* Status */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    .status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #555;
+      transition: all 0.3s;
+    }
+    .status-dot.connected { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.5); }
+    .status-dot.error { background: var(--accent); }
+
+    /* Content */
+    .content { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+
+    /* URL display */
+    .current-url {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .url-label {
+      font-size: 9px;
+      font-family: 'JetBrains Mono', monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+    .url-text {
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-sec);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Options */
+    .options { display: flex; flex-direction: column; gap: 8px; }
+
+    .quality-row { display: flex; gap: 6px; }
+    .quality-btn {
+      flex: 1;
+      padding: 8px 4px;
+      border-radius: 8px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-sec);
+      font-size: 10px;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+    }
+    .quality-btn:hover { border-color: var(--border-hover); color: var(--text); }
+    .quality-btn.active {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .toggle-label { font-size: 12px; font-weight: 500; }
+    .toggle {
+      width: 36px; height: 20px;
+      border-radius: 10px;
+      background: var(--bg-hover);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      position: relative;
+      transition: all 0.2s;
+    }
+    .toggle.on { background: var(--accent); }
+    .toggle-thumb {
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: white;
+      transition: left 0.2s;
+    }
+    .toggle.on .toggle-thumb { left: 18px; }
+
+    /* Download button */
+    .btn-download {
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      background: var(--accent);
+      border: none;
+      color: white;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 0.02em;
+      box-shadow: 0 4px 20px var(--accent-glow);
+    }
+    .btn-download:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-download:active { transform: translateY(0); }
+    .btn-download:disabled {
+      background: var(--bg-card);
+      color: var(--text-muted);
+      box-shadow: none;
+      cursor: default;
+      transform: none;
+    }
+
+    /* Success/error state */
+    .result {
+      text-align: center;
+      padding: 10px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 500;
+      display: none;
+    }
+    .result.success { background: rgba(34,197,94,0.1); color: #22c55e; border: 1px solid rgba(34,197,94,0.2); }
+    .result.error { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent-glow); }
+    .result.show { display: block; }
+
+    /* No app warning */
+    .warning {
+      background: var(--accent-dim);
+      border: 1px solid var(--accent-glow);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 11px;
+      color: var(--text-sec);
+      line-height: 1.5;
+      display: none;
+    }
+    .warning.show { display: block; }
+    .warning strong { color: var(--accent); }
+
+    /* Footer */
+    .footer {
+      padding: 8px 16px 12px;
+      text-align: center;
+      font-size: 9px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">T</div>
+    <div class="app-name">Touch<span>My</span>Video</div>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Sprawdzanie połączenia...</span>
+  </div>
+
+  <div class="content">
+    <div class="current-url" id="urlBox">
+      <div class="url-label">Aktualna strona</div>
+      <div class="url-text" id="urlText">Ładowanie...</div>
+    </div>
+
+    <div class="warning" id="warning">
+      <strong>Aplikacja nie jest uruchomiona!</strong><br/>
+      Uruchom TouchMyVideo na tym komputerze, aby móc pobierać filmy.
+    </div>
+
+    <div class="options" id="options">
+      <div class="quality-row" id="qualityRow">
+        <button class="quality-btn active" data-q="best">Auto</button>
+        <button class="quality-btn" data-q="1080p">1080p</button>
+        <button class="quality-btn" data-q="720p">720p</button>
+        <button class="quality-btn" data-q="480p">480p</button>
+      </div>
+
+      <div class="toggle-row">
+        <span class="toggle-label">Tylko MP3</span>
+        <div class="toggle" id="audioToggle">
+          <div class="toggle-thumb"></div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-download" id="btnDownload" disabled>
+      ↓ Pobierz film
+    </button>
+
+    <div class="result" id="result"></div>
+  </div>
+
+  <div class="footer">TouchMyVideo v1.0 · Port 43210</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
