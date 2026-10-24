@@ -1,0 +1,19 @@
+{
+  "extName": { "message": "TouchMyVideo" },
+  "extDescription": { "message": "Send videos to the TouchMyVideo desktop app in one click." },
+  "menuVideo": { "message": "Download with TouchMyVideo" },
+  "menuLink": { "message": "Download link with TouchMyVideo" },
+  "menuAudio": { "message": "Download audio only" },
+  "connected": { "message": "Connected to the app" },
+  "disconnected": { "message": "The app isn’t running" },
+  "launch": { "message": "Open TouchMyVideo" },
+  "launchHint": { "message": "Start the desktop app, then try again. It must be installed on this computer." },
+  "video": { "message": "Video" },
+  "audio": { "message": "Audio only" },
+  "quality": { "message": "Quality" },
+  "best": { "message": "Best available" },
+  "download": { "message": "Download" },
+  "sent": { "message": "Added to the queue in TouchMyVideo" },
+  "failed": { "message": "Couldn’t reach the app. Is it running?" },
+  "notAPage": { "message": "Open a page with a video first." }
+}

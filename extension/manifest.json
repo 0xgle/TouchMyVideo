@@ -1,44 +1,24 @@
 {
   "manifest_version": 3,
-  "name": "TouchMyVideo",
-  "version": "1.0.0",
-  "description": "Pobieraj filmy jednym kliknięciem. Wymaga aplikacji TouchMyVideo.",
-  "permissions": [
-    "activeTab",
-    "storage"
-  ],
+  "name": "__MSG_extName__",
+  "short_name": "TouchMyVideo",
+  "version": "2.0.0",
+  "description": "__MSG_extDescription__",
+  "default_locale": "en",
+  "minimum_chrome_version": "116",
+  "permissions": ["activeTab", "contextMenus", "storage"],
   "host_permissions": [
-    "http://127.0.0.1:43210/*"
+    "http://127.0.0.1:43210/*",
+    "http://127.0.0.1:43211/*",
+    "http://127.0.0.1:43212/*",
+    "http://127.0.0.1:43213/*",
+    "http://127.0.0.1:43214/*"
   ],
+  "background": { "service_worker": "background.js", "type": "module" },
   "action": {
     "default_popup": "popup/popup.html",
-    "default_icon": {
-      "16": "icons/icon16.png",
-      "32": "icons/icon32.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
-    }
+    "default_title": "TouchMyVideo",
+    "default_icon": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
   },
-  "content_scripts": [
-    {
-      "matches": [
-        "*://*.youtube.com/*",
-        "*://*.vimeo.com/*",
-        "*://*.twitter.com/*",
-        "*://*.x.com/*",
-        "*://*.facebook.com/*",
-        "*://*.instagram.com/*",
-        "*://*.tiktok.com/*",
-        "*://*.dailymotion.com/*"
-      ],
-      "js": ["content.js"],
-      "run_at": "document_idle"
-    }
-  ],
-  "icons": {
-    "16": "icons/icon16.png",
-    "32": "icons/icon32.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
-  }
+  "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
 }

@@ -1,0 +1,19 @@
+{
+  "extName": { "message": "TouchMyVideo" },
+  "extDescription": { "message": "Wysyłaj filmy do aplikacji TouchMyVideo jednym kliknięciem." },
+  "menuVideo": { "message": "Pobierz w TouchMyVideo" },
+  "menuLink": { "message": "Pobierz link w TouchMyVideo" },
+  "menuAudio": { "message": "Pobierz tylko dźwięk" },
+  "connected": { "message": "Połączono z aplikacją" },
+  "disconnected": { "message": "Aplikacja nie jest uruchomiona" },
+  "launch": { "message": "Uruchom TouchMyVideo" },
+  "launchHint": { "message": "Włącz aplikację na komputerze i spróbuj ponownie. Musi być zainstalowana na tym komputerze." },
+  "video": { "message": "Wideo" },
+  "audio": { "message": "Tylko dźwięk" },
+  "quality": { "message": "Jakość" },
+  "best": { "message": "Najlepsza dostępna" },
+  "download": { "message": "Pobierz" },
+  "sent": { "message": "Dodano do kolejki w TouchMyVideo" },
+  "failed": { "message": "Brak połączenia z aplikacją. Czy jest uruchomiona?" },
+  "notAPage": { "message": "Najpierw otwórz stronę z filmem." }
+}
