@@ -24,7 +24,14 @@ function writeJsonAtomic(file, data) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     const tmp = file + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
-    fs.renameSync(tmp, file);
+    // Windows: Defender/indexer may hold the target for a moment — retry briefly.
+    for (let i = 0; ; i++) {
+      try { fs.renameSync(tmp, file); break; }
+      catch (e) {
+        if (i >= 10 || !['EPERM', 'EBUSY', 'EACCES'].includes(e.code)) throw e;
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+      }
+    }
   } catch (e) { log('write error', file, e.message); }
 }
 

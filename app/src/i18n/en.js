@@ -30,6 +30,7 @@ export default {
     network: 'Couldn’t reach the site. Check your connection and try again.',
     outdated: 'The site changed how it works. Update the download engine and try again.',
     folder: 'Can’t write to the chosen folder. Pick another one in Settings.',
+    'downloads-running': 'Wait for downloads to finish first — the engine can’t be replaced while it’s running.',
     cancelled: 'Cancelled.',
     unknown: 'Something went wrong. Details are in the log.',
   },

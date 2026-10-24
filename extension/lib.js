@@ -32,7 +32,8 @@ export async function sendToApp({ url, title, quality = null, audioOnly = false 
     });
     return await r.json();
   } catch {
-    return { ok: false, error: 'offline' };
+    // The app answered /ping, so it is running — don't relaunch it (that could add a duplicate).
+    return { ok: false, error: 'timeout' };
   }
 }
 

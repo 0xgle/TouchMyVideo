@@ -5,6 +5,8 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawn, execFile } = require('child_process');
 const { EventEmitter } = require('events');
+const { Readable, Transform } = require('stream');
+const { pipeline } = require('stream/promises');
 const { net } = require('electron');
 const P = require('./paths');
 const { log, getSettings, setSettings } = require('./store');
@@ -19,6 +21,11 @@ const FFMPEG_SOURCES = P.IS_WIN
   : (!P.IS_MAC && process.arch === 'x64')
     ? ['https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz']
     : [];
+
+// Use the Windows binaries explicitly — Git-for-Windows' GNU tar on PATH can't read C:\ paths or zips.
+const SYSROOT = process.env.SystemRoot || 'C:\\Windows';
+const SYS_TAR = P.IS_WIN ? path.join(SYSROOT, 'System32', 'tar.exe') : 'tar';
+const SYS_PS = path.join(SYSROOT, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
 
 const UPDATE_EVERY_MS = 24 * 3600 * 1000;
 
@@ -43,7 +50,7 @@ function setTask(task, pct = 0) { state.task = task; state.pct = pct; emit(); }
 function run(file, args, timeout = 60000) {
   return new Promise((resolve) => {
     execFile(file, args, { timeout, windowsHide: true, env: utf8Env() }, (err, stdout, stderr) => {
-      resolve({ ok: !err, code: err?.code ?? 0, stdout: String(stdout || ''), stderr: String(stderr || '') });
+      resolve({ ok: !err, code: err?.code ?? 0, killed: !!err?.killed, stdout: String(stdout || ''), stderr: String(stderr || '') });
     });
   });
 }
@@ -61,35 +68,51 @@ function which(name) {
   return null;
 }
 
+// Streams to a temp file with an idle timeout; any network/disk error rejects (never hangs).
 async function download(url, dest, label) {
   log('download', url);
-  const res = await net.fetch(url, { headers: { 'User-Agent': 'TouchMyVideo/2' } });
-  if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`);
-  const total = Number(res.headers.get('content-length')) || 0;
+  const ctrl = new AbortController();
+  let idle;
+  const kick = () => { clearTimeout(idle); idle = setTimeout(() => ctrl.abort(new Error('download stalled')), 60000); };
+  kick();
   const tmp = dest + '.download';
-  const out = fs.createWriteStream(tmp);
-  const reader = res.body.getReader();
-  let got = 0, lastEmit = 0;
   try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!out.write(Buffer.from(value))) await new Promise(r => out.once('drain', r));
-      got += value.length;
-      const now = Date.now();
-      if (total && now - lastEmit > 150) { lastEmit = now; setTask(label, Math.round((got / total) * 100)); }
-    }
-    await new Promise((resolve, reject) => out.end(err => (err ? reject(err) : resolve())));
-    fs.renameSync(tmp, dest);
+    const res = await net.fetch(url, { headers: { 'User-Agent': 'TouchMyVideo/2' }, signal: ctrl.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`);
+    const total = Number(res.headers.get('content-length')) || 0;
+    let got = 0, lastEmit = 0;
+    const meter = new Transform({
+      transform(chunk, _enc, cb) {
+        kick();
+        got += chunk.length;
+        const now = Date.now();
+        if (total && now - lastEmit > 150) { lastEmit = now; setTask(label, Math.round((got / total) * 100)); }
+        cb(null, chunk);
+      },
+    });
+    await pipeline(Readable.fromWeb(res.body), meter, fs.createWriteStream(tmp), { signal: ctrl.signal });
+    await renameRetry(tmp, dest);
   } catch (e) {
-    out.destroy();
     try { fs.unlinkSync(tmp); } catch {}
     throw e;
+  } finally {
+    clearTimeout(idle);
+  }
+}
+
+// Antivirus / indexers briefly lock freshly written files on Windows.
+async function renameRetry(from, to) {
+  for (let i = 0; ; i++) {
+    try { return fs.renameSync(from, to); }
+    catch (e) {
+      if (i >= 8 || !['EPERM', 'EBUSY', 'EACCES'].includes(e.code)) throw e;
+      await new Promise(r => setTimeout(r, 250));
+    }
   }
 }
 
 async function fetchText(url) {
-  const res = await net.fetch(url, { headers: { 'User-Agent': 'TouchMyVideo/2' } });
+  const res = await net.fetch(url, { headers: { 'User-Agent': 'TouchMyVideo/2' }, signal: AbortSignal.timeout(30000) });
   if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`);
   return res.text();
 }
@@ -104,7 +127,7 @@ function sha256(file) {
 function extract(archive, destDir) {
   fs.mkdirSync(destDir, { recursive: true });
   const viaTar = () => new Promise((resolve, reject) => {
-    const p = spawn('tar', ['-xf', archive, '-C', destDir], { windowsHide: true });
+    const p = spawn(SYS_TAR, ['-xf', archive, '-C', destDir], { windowsHide: true });
     let err = '';
     p.stderr.on('data', d => { err += d; });
     p.on('error', reject);
@@ -112,7 +135,7 @@ function extract(archive, destDir) {
   });
   const viaPowershell = () => new Promise((resolve, reject) => {
     const q = (s) => "'" + s.replace(/'/g, "''") + "'";
-    const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+    const p = spawn(SYS_PS, ['-NoProfile', '-NonInteractive', '-Command',
       `Expand-Archive -LiteralPath ${q(archive)} -DestinationPath ${q(destDir)} -Force`], { windowsHide: true });
     let err = '';
     p.stderr.on('data', d => { err += d; });
@@ -143,15 +166,16 @@ async function detect() {
   state.ytdlpVersion = null;
   state.ffmpegVersion = null;
   if (state.ytdlp) {
-    const r = await run(state.ytdlp, ['--version'], 20000);
+    const r = await run(state.ytdlp, ['--version'], 90000);
     if (r.ok) state.ytdlpVersion = r.stdout.trim();
+    else if (r.code === 'ETIMEDOUT' || r.killed) log('yt-dlp --version timed out; keeping it');
     else { log('yt-dlp --version failed', r.stderr.slice(0, 200)); state.ytdlp = null; }
   }
   if (state.ffmpegDir) {
-    const r = await run(path.join(state.ffmpegDir, 'ffmpeg' + P.EXE), ['-version'], 20000);
+    const r = await run(path.join(state.ffmpegDir, 'ffmpeg' + P.EXE), ['-version'], 60000);
     const m = r.stdout.match(/ffmpeg version (\S+)/);
     state.ffmpegVersion = m ? m[1].slice(0, 24) : null;
-    if (!r.ok) state.ffmpegDir = null;
+    if (!r.ok && !r.killed) state.ffmpegDir = null;
   }
   emit();
   return status();
@@ -177,7 +201,8 @@ async function installYtdlp() {
     if (/checksum mismatch/.test(e.message)) throw e;
     log('checksum check skipped:', e.message);
   }
-  fs.renameSync(tmpTarget, P.YTDLP_LOCAL);
+  await renameRetry(tmpTarget, P.YTDLP_LOCAL);
+  setSettings({ lastYtdlpUpdate: Date.now() }); // fresh download is already the latest
   if (!P.IS_WIN) fs.chmodSync(P.YTDLP_LOCAL, 0o755);
   log('yt-dlp installed');
 }
@@ -260,4 +285,5 @@ module.exports = {
   events, status, detect, ensure, update, repair, utf8Env,
   get ytdlp() { return state.ytdlp; },
   get ffmpegDir() { return state.ffmpegDir; },
+  get busy() { return state.busy; },
 };

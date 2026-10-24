@@ -39,12 +39,12 @@ $('go').disabled = !isWebUrl(pageUrl);
 
 $('go').addEventListener('click', async () => {
   $('go').disabled = true;
-  const r = await sendToApp({ url: pageUrl, title: tab.title, quality: mode === 'audio' ? null : ($('quality').value || 'best'), audioOnly: mode === 'audio' });
+  const r = await sendToApp({ url: pageUrl, title: tab?.title, quality: mode === 'audio' ? null : ($('quality').value || 'best'), audioOnly: mode === 'audio' });
   if (r.ok) { result(msg('sent'), 'ok'); setTimeout(() => window.close(), 1200); }
   else { result(msg('failed'), 'err'); $('go').disabled = false; }
 });
 
 $('launch').addEventListener('click', () => {
-  chrome.tabs.update(tab.id, { url: launchUrl(isWebUrl(pageUrl) ? pageUrl : '') });
+  if (tab?.id) chrome.tabs.update(tab.id, { url: launchUrl(isWebUrl(pageUrl) ? pageUrl : '') });
   window.close();
 });

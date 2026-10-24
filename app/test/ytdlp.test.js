@@ -21,7 +21,8 @@ test('video download uses format sorting capped at chosen height', () => {
 
 test('without ffmpeg only pre-muxed formats are requested', () => {
   const a = Y.buildArgs(job({ quality: '720' }), settings, {});
-  assert.equal(a[a.indexOf('-f') + 1], 'b[height<=720]/b');
+  assert.equal(a[a.indexOf('-f') + 1], 'b');
+  assert.equal(a[a.indexOf('-S') + 1], 'res:720');
   assert.ok(!a.includes('--merge-output-format'));
 });
 
@@ -66,6 +67,9 @@ test('errors are classified into actionable kinds', () => {
   assert.equal(Y.classifyError("Sign in to confirm you're not a bot"), 'auth');
   assert.equal(Y.classifyError('Unsupported URL: https://x'), 'unsupported');
   assert.equal(Y.classifyError('HTTP Error 403: Forbidden'), 'outdated');
+  assert.equal(Y.classifyError('Requested format is not available'), 'format');
+  assert.equal(Y.classifyError('unable to download video data: HTTP Error 403: Forbidden'), 'outdated');
+  assert.equal(Y.classifyError('Unable to download webpage: <urlopen error timed out>'), 'network');
   assert.equal(Y.parseError('WARNING: x\nERROR: [youtube] abc: Video unavailable'), 'Video unavailable');
 });
 

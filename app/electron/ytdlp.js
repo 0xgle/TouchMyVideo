@@ -79,7 +79,8 @@ function buildArgs(job, settings, tools = {}) {
     args.push('--merge-output-format', settings.container || 'mp4');
   } else {
     // Without ffmpeg only pre-muxed (video+audio in one file) formats work.
-    args.push('-f', quality === 'best' ? 'b' : `b[height<=${quality}]/b`);
+    args.push('-f', 'b');
+    if (quality !== 'best') args.push('-S', 'res:' + quality);
   }
 
   if (hasFfmpeg && settings.embedMetadata) args.push('--embed-metadata');
@@ -146,13 +147,14 @@ function parseError(stderr) {
 /** Classify common failures so the UI can say what to do about them. */
 function classifyError(message) {
   const m = (message || '').toLowerCase();
-  if (/sign in to confirm|confirm you.?re not a bot|login required|private video|members-only|cookies/.test(m)) return 'auth';
-  if (/unsupported url/.test(m)) return 'unsupported';
-  if (/video unavailable|not available|has been removed|404/.test(m)) return 'unavailable';
+  // Order matters: specific causes first, generic "unable to download" last.
   if (/requested format is not available/.test(m)) return 'format';
+  if (/sign in to confirm|confirm you.?re not a bot|login required|private video|members-only|cookies/.test(m)) return 'auth';
+  if (/http error 403|forbidden|nsig|signature extraction/.test(m)) return 'outdated';
+  if (/unsupported url/.test(m)) return 'unsupported';
+  if (/video unavailable|is not available|has been removed|\b404\b/.test(m)) return 'unavailable';
   if (/ffmpeg|ffprobe/.test(m)) return 'ffmpeg';
   if (/unable to download|timed out|connection|network|getaddrinfo|ssl/.test(m)) return 'network';
-  if (/http error 403|forbidden|nsig|signature/.test(m)) return 'outdated';
   return 'unknown';
 }
 
@@ -217,9 +219,11 @@ function summarizeInfo(info) {
   const byHeight = new Map();
   for (const f of formats) {
     if (!f.height || !f.vcodec || f.vcodec === 'none') continue;
+    // yt-dlp's "res" sort uses the smaller side, so a 1080x1920 Short counts as 1080p.
+    const h = f.width ? Math.min(f.width, f.height) : f.height;
     const size = (f.filesize || f.filesize_approx || 0) + (f.acodec === 'none' ? audioSize : 0);
-    const cur = byHeight.get(f.height);
-    if (!cur || size > cur.size) byHeight.set(f.height, { height: f.height, size: size || null, fps: f.fps || null });
+    const cur = byHeight.get(h);
+    if (!cur || size > cur.size) byHeight.set(h, { height: h, size: size || null, fps: f.fps || null });
   }
   const heights = [...byHeight.values()].sort((a, b) => b.height - a.height);
 

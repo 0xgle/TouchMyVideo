@@ -34,6 +34,7 @@ export default {
     network: 'Brak połączenia z serwisem. Sprawdź internet i spróbuj ponownie.',
     outdated: 'Serwis zmienił sposób działania. Zaktualizuj silnik pobierania i spróbuj ponownie.',
     folder: 'Nie można zapisać w wybranym folderze. Wybierz inny w ustawieniach.',
+    'downloads-running': 'Najpierw poczekaj na koniec pobierań — silnika nie da się podmienić w trakcie.',
     cancelled: 'Anulowano.',
     unknown: 'Coś poszło nie tak. Szczegóły są w logu.',
   },

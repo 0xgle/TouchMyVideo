@@ -58,14 +58,22 @@ function createServer({ version, onDownload, onPing }) {
         if (tooBig) return;
         let data;
         try { data = JSON.parse(body); } catch { return json(400, { error: 'bad-json' }, cors); }
-        const r = onDownload({
-          url: String(data.url || ''),
-          options: {
-            quality: data.quality, audioOnly: !!data.audioOnly,
-            playlist: !!data.playlist, subtitles: !!data.subtitles,
-          },
-          title: typeof data.title === 'string' ? data.title.slice(0, 300) : null,
-        });
+        if (!data || typeof data !== 'object' || Array.isArray(data)) return json(400, { error: 'bad-json' }, cors);
+        let r;
+        try {
+          r = onDownload({
+            url: String(data.url || ''),
+            options: {
+              quality: typeof data.quality === 'string' ? data.quality : null,
+              audioOnly: !!data.audioOnly,
+              playlist: !!data.playlist,
+            },
+            title: typeof data.title === 'string' ? data.title.slice(0, 300) : null,
+          });
+        } catch (e) {
+          log('server: download request failed', e.message);
+          return json(500, { ok: false, error: 'internal' }, cors);
+        }
         return json(r.ok ? 200 : 400, r, cors);
       });
       return;
@@ -74,10 +82,18 @@ function createServer({ version, onDownload, onPing }) {
     json(404, { error: 'not-found' }, cors);
   };
 
+  const safeHandler = (req, res) => {
+    try { handler(req, res); }
+    catch (e) {
+      log('server error', e.message);
+      try { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end('{"error":"internal"}'); } catch {}
+    }
+  };
+
   function listen(i = 0) {
     return new Promise((resolve) => {
       if (i >= PORTS.length) { log('server: no free port'); return resolve(null); }
-      const s = http.createServer(handler);
+      const s = http.createServer(safeHandler);
       s.once('error', (e) => {
         log('server port', PORTS[i], e.code);
         resolve(listen(i + 1));

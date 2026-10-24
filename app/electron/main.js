@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, dialog, Notification, session } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, dialog, Notification, session, powerMonitor } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -13,7 +13,7 @@ if (!app.requestSingleInstanceLock()) {
 const P = require('./paths');
 const store = require('./store');
 const tools = require('./tools');
-const { DownloadManager, URL_RE } = require('./downloader');
+const { DownloadManager, validUrl } = require('./downloader');
 const { createServer } = require('./server');
 const { t } = require('./i18n');
 const { log, getSettings, setSettings } = store;
@@ -28,6 +28,10 @@ let quitting = false;
 let manager = null;
 let server = null;
 
+// A bug must never take the app down with a raw error dialog — log it instead.
+process.on('uncaughtException', (e) => log('uncaughtException', e?.stack || String(e)));
+process.on('unhandledRejection', (e) => log('unhandledRejection', e?.stack || String(e)));
+
 log(`TouchMyVideo ${VERSION} starting (${process.platform}/${process.arch})`);
 
 // ─── Protocol: touchmyvideo://download?url=… ─────────────────────────────────
@@ -41,18 +45,18 @@ function handleProtocolUrl(raw) {
   try {
     const u = new URL(raw);
     if (u.protocol !== PROTOCOL + ':') return;
-    const target = u.searchParams.get('url');
-    if (target && URL_RE.test(target)) {
-      showWindow();
-      send('external:url', { url: target });
-    }
+    const target = validUrl(u.searchParams.get('url'));
+    showWindow();
+    if (target) sendWhenLoaded('external:url', { url: target });
   } catch {}
 }
 const protocolArg = (argv) => argv.find(a => a.startsWith(PROTOCOL + '://'));
 
 app.on('second-instance', (_e, argv) => {
-  const link = protocolArg(argv);
-  if (link) handleProtocolUrl(link); else showWindow();
+  app.whenReady().then(() => {
+    const link = protocolArg(argv);
+    if (link) handleProtocolUrl(link); else showWindow();
+  });
 });
 app.on('open-url', (e, url) => { e.preventDefault(); app.whenReady().then(() => handleProtocolUrl(url)); });
 
@@ -61,9 +65,19 @@ function send(channel, data) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, data);
 }
 
+// Messages sent while the page is still loading would be dropped — hold them until it's ready.
+const pending = [];
+function sendWhenLoaded(channel, data) {
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isLoading()) send(channel, data);
+  else pending.push([channel, data]);
+}
+
+const INDEX_URL = P.IS_DEV ? 'http://localhost:5173/' : require('url').pathToFileURL(path.join(__dirname, '..', 'dist', 'index.html')).href;
+const isOwnPage = (url) => typeof url === 'string' && url.split('#')[0].split('?')[0] === INDEX_URL;
+
 // The page may read the clipboard (link suggestions); every other permission is denied.
 function lockDownPermissions() {
-  const own = (url) => url.startsWith('file://') || (P.IS_DEV && url.startsWith('http://localhost:5173'));
+  const own = (url) => isOwnPage(url) || (P.IS_DEV && url === 'http://localhost:5173');
   const allowed = new Set(['clipboard-read', 'clipboard-sanitized-write']);
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb, details) => cb(allowed.has(perm) && own(details.requestingUrl || wc.getURL())));
   session.defaultSession.setPermissionCheckHandler((wc, perm, origin) => allowed.has(perm) && own(origin || wc?.getURL() || ''));
@@ -101,8 +115,10 @@ function createWindow() {
     if (/^https?:\/\//.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
-  mainWindow.webContents.on('will-navigate', (e, url) => {
-    if (!url.startsWith('http://localhost:5173') && !url.startsWith('file://')) e.preventDefault();
+  // Never navigate away from our own page (e.g. a file dropped onto the window).
+  mainWindow.webContents.on('will-navigate', (e, url) => { if (!isOwnPage(url)) e.preventDefault(); });
+  mainWindow.webContents.on('did-finish-load', () => {
+    while (pending.length) send(...pending.shift());
   });
 
   mainWindow.on('close', (e) => {
@@ -131,9 +147,13 @@ function trayIcon() {
   return img.isEmpty() ? nativeImage.createFromPath(path.join(P.ASSETS_DIR, 'icon.png')).resize({ width: 16, height: 16 }) : img;
 }
 
+let trayState = '';
 function updateTray() {
   if (!tray) return;
   const active = manager ? manager.activeCount() : 0;
+  const key = active + '|' + store.language();
+  if (key === trayState) return; // rebuilding the menu on every progress tick flickers and closes it
+  trayState = key;
   tray.setToolTip(active ? `TouchMyVideo — ${t('active', active)}` : 'TouchMyVideo');
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: t('open'), click: showWindow },
@@ -173,6 +193,7 @@ function updateTaskbar() {
   mainWindow.setProgressBar(value < 0 ? -1 : Math.max(0.01, value));
 }
 
+const liveNotifications = new Set();
 function notify(job, ok) {
   if (!getSettings().notifications || !Notification.isSupported()) return;
   if (mainWindow?.isVisible() && mainWindow.isFocused()) return; // the UI already shows it
@@ -182,7 +203,12 @@ function notify(job, ok) {
     icon: path.join(P.ASSETS_DIR, 'icon.png'),
     silent: ok,
   });
-  n.on('click', () => { if (ok) revealFile(job.files[job.files.length - 1]); else showWindow(); });
+  // Keep a reference until it closes, or Windows may garbage-collect it before the click.
+  liveNotifications.add(n);
+  const drop = () => liveNotifications.delete(n);
+  n.on('click', () => { drop(); if (ok) revealFile(job.files[job.files.length - 1]); else showWindow(); });
+  n.on('close', drop);
+  setTimeout(drop, 10 * 60 * 1000);
   n.show();
 }
 
@@ -221,8 +247,8 @@ function registerIpc() {
   });
 
   h('tools:status', () => tools.status());
-  h('tools:update', () => tools.update({ force: true }));
-  h('tools:repair', () => tools.repair());
+  h('tools:update', () => maintain(() => tools.update({ force: true })));
+  h('tools:repair', () => maintain(() => tools.repair()));
   h('tools:install', () => tools.ensure());
 
   h('jobs:list', () => manager.list());
@@ -241,6 +267,14 @@ function registerIpc() {
   h('shell:openDownloads', () => openDownloadsDir());
   h('shell:openLog', () => shell.openPath(P.LOG_FILE));
   h('shell:openExternal', (url) => { if (/^https?:\/\//.test(url)) shell.openExternal(url); });
+}
+
+// Replacing yt-dlp while it runs breaks downloads (and fails on Windows), so tool
+// maintenance only happens when nothing is using the engine.
+async function maintain(fn) {
+  if (!manager.idle()) return { ...tools.status(), error: 'downloads-running' };
+  manager.pause();
+  try { return await fn(); } finally { manager.resume(); }
 }
 
 // ─── Lifecycle ───────────────────────────────────────────────────────────────
@@ -268,14 +302,19 @@ app.whenReady().then(async () => {
   await server.start();
 
   // Tools: install whatever is missing, then keep yt-dlp fresh (sites change constantly).
-  await tools.ensure();
-  if (tools.ytdlp) manager.pump();
-  else manager.failQueued('no-ytdlp', tools.status().error || 'yt-dlp is not installed');
-  tools.update().then(() => manager.pump());
-
   const link = protocolArg(process.argv);
   if (link) handleProtocolUrl(link);
-});
+
+  await tools.ensure();
+  if (!tools.ytdlp) manager.failQueued('no-ytdlp', tools.status().error || 'yt-dlp is not installed');
+  // Update before the first download starts; then check again every few hours while idle.
+  await maintain(() => tools.update());
+  manager.pump();
+  setInterval(() => { if (manager.idle()) maintain(() => tools.update()); }, 3 * 3600 * 1000);
+
+  // Windows shutdown/logoff skips before-quit — save history anyway.
+  powerMonitor.on('shutdown', () => { manager.shutdown(); store.saveHistory(true, manager.list()); });
+}).catch((e) => log('startup failed', e?.stack || String(e)));
 
 app.on('before-quit', () => {
   quitting = true;

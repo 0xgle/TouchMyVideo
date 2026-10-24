@@ -42,7 +42,7 @@ export default function SettingsView() {
     setWorking(kind);
     const r = kind === 'update' ? await api.updateTools() : await api.repairTools();
     setWorking(null);
-    if (r?.error) toast(r.error, 'error');
+    if (r?.error) toast(r.error === 'downloads-running' ? t('errors.downloads-running') : r.error, 'error');
     else toast(kind === 'update' ? t('toastUpdated', r?.ytdlpVersion || '') : t('toastRepaired'), 'success');
   };
 
