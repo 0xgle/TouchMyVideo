@@ -1,0 +1,28 @@
+:root { --ink:#121316; --panel:#18191d; --raise:#1f2125; --line:#2a2d33; --text:#ecebe6; --dim:#a3a6ad; --faint:#6c7078; --brand:#19e08a; --brand-ink:#04140c; --danger:#ff6b5e; color-scheme: dark; }
+* { box-sizing: border-box; margin: 0; }
+body { width: 320px; padding: 14px; background: var(--ink); color: var(--text); font: 14px/1.45 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif; display: grid; gap: 12px; }
+button, select { font: inherit; color: inherit; }
+header { display: flex; align-items: center; gap: 8px; }
+.mark { width: 16px; height: 16px; border-radius: 3px; background: var(--brand); }
+.status { margin-left: auto; font-size: 12px; color: var(--faint); display: flex; align-items: center; gap: 6px; }
+.status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+.status[data-state="on"] { color: var(--dim); } .status[data-state="on"]::before { background: var(--brand); }
+.status[data-state="off"]::before { background: var(--danger); }
+.page { padding: 10px 12px; border-radius: 8px; background: var(--panel); }
+.title { font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.host { font-size: 12px; color: var(--faint); margin-top: 2px; }
+section[hidden] { display: none !important; }
+#ready, #offline { display: grid; gap: 10px; }
+#offline p { color: var(--dim); font-size: 13px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; padding: 3px; gap: 2px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); }
+.seg button { height: 30px; border: 0; border-radius: 6px; background: none; color: var(--dim); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--raise); color: var(--text); }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--dim); }
+.row[aria-disabled="true"] { opacity: .4; pointer-events: none; }
+select { height: 32px; padding: 0 8px; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); min-width: 160px; }
+.primary { height: 40px; border: 0; border-radius: 8px; background: var(--brand); color: var(--brand-ink); font-weight: 650; cursor: pointer; }
+.primary:hover { filter: brightness(.94); } .primary:disabled { opacity: .5; cursor: default; }
+:focus-visible { outline: 2px solid #7cf2bd; outline-offset: 2px; }
+.result { font-size: 13px; color: var(--dim); min-height: 1em; }
+.result.ok { color: var(--brand); } .result.err { color: var(--danger); }
+.result:empty { display: none; }

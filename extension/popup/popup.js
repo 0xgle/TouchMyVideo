@@ -1,106 +1,50 @@
-const APP_URL = 'http://127.0.0.1:43210';
+import { findApp, sendToApp, launchUrl, isWebUrl } from '../lib.js';
 
-let currentUrl = '';
-let appConnected = false;
-let selectedQuality = 'best';
-let audioOnly = false;
+const msg = (k) => chrome.i18n.getMessage(k);
+const $ = (id) => document.getElementById(id);
+document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = msg(el.dataset.i18n); });
 
-const statusDot = document.getElementById('statusDot');
-const statusText = document.getElementById('statusText');
-const urlText = document.getElementById('urlText');
-const btnDownload = document.getElementById('btnDownload');
-const result = document.getElementById('result');
-const warning = document.getElementById('warning');
-const audioToggle = document.getElementById('audioToggle');
-const qualityRow = document.getElementById('qualityRow');
+let tab = null;
+let mode = 'video';
 
-// Check app connection
-async function checkConnection() {
-  try {
-    const res = await fetch(`${APP_URL}/ping`, { signal: AbortSignal.timeout(2000) });
-    const data = await res.json();
-    if (data.status === 'ok') {
-      appConnected = true;
-      statusDot.className = 'status-dot connected';
-      statusText.textContent = 'Aplikacja połączona';
-      warning.classList.remove('show');
-      if (currentUrl) btnDownload.disabled = false;
-    }
-  } catch {
-    appConnected = false;
-    statusDot.className = 'status-dot error';
-    statusText.textContent = 'Aplikacja niedostępna';
-    warning.classList.add('show');
-    btnDownload.disabled = true;
-  }
+const settings = await chrome.storage.local.get(['mode', 'quality']);
+if (settings.mode) setMode(settings.mode);
+if (settings.quality !== undefined) $('quality').value = settings.quality;
+
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === m)));
+  $('qualityRow').setAttribute('aria-disabled', String(m === 'audio'));
+}
+document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => { setMode(b.dataset.mode); chrome.storage.local.set({ mode }); }));
+$('quality').addEventListener('change', () => chrome.storage.local.set({ quality: $('quality').value }));
+
+function result(text, kind) { const r = $('result'); r.textContent = text; r.className = 'result ' + (kind || ''); }
+
+[tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+const pageUrl = tab?.url;
+if (isWebUrl(pageUrl)) {
+  $('title').textContent = tab.title || pageUrl;
+  try { $('host').textContent = new URL(pageUrl).hostname.replace(/^www\./, ''); } catch {}
+} else {
+  $('title').textContent = msg('notAPage');
 }
 
-// Get current tab URL
-async function getCurrentTab() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab?.url) {
-    currentUrl = tab.url;
-    const short = currentUrl.length > 42 ? currentUrl.substring(0, 42) + '...' : currentUrl;
-    urlText.textContent = short;
-    urlText.title = currentUrl;
-    if (appConnected) btnDownload.disabled = false;
-  }
-}
+const app = await findApp();
+$('status').dataset.state = app ? 'on' : 'off';
+$('status').textContent = app ? msg('connected') : msg('disconnected');
+$('ready').hidden = !app;
+$('offline').hidden = !!app;
+$('go').disabled = !isWebUrl(pageUrl);
 
-// Quality buttons
-document.querySelectorAll('.quality-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.quality-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    selectedQuality = btn.dataset.q;
-  });
+$('go').addEventListener('click', async () => {
+  $('go').disabled = true;
+  const r = await sendToApp({ url: pageUrl, title: tab.title, quality: mode === 'audio' ? null : ($('quality').value || 'best'), audioOnly: mode === 'audio' });
+  if (r.ok) { result(msg('sent'), 'ok'); setTimeout(() => window.close(), 1200); }
+  else { result(msg('failed'), 'err'); $('go').disabled = false; }
 });
 
-// Audio toggle
-audioToggle.addEventListener('click', () => {
-  audioOnly = !audioOnly;
-  audioToggle.classList.toggle('on', audioOnly);
-  qualityRow.style.opacity = audioOnly ? '0.3' : '1';
-  qualityRow.style.pointerEvents = audioOnly ? 'none' : 'auto';
-  btnDownload.textContent = audioOnly ? '↓ Pobierz MP3' : '↓ Pobierz film';
+$('launch').addEventListener('click', () => {
+  chrome.tabs.update(tab.id, { url: launchUrl(isWebUrl(pageUrl) ? pageUrl : '') });
+  window.close();
 });
-
-// Download
-btnDownload.addEventListener('click', async () => {
-  if (!currentUrl || !appConnected) return;
-
-  btnDownload.disabled = true;
-  btnDownload.textContent = '⟳ Wysyłanie...';
-  result.className = 'result';
-
-  try {
-    const res = await fetch(`${APP_URL}/download`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: currentUrl, quality: selectedQuality, audioOnly }),
-      signal: AbortSignal.timeout(5000),
-    });
-
-    if (res.ok) {
-      result.textContent = '✅ Pobieranie rozpoczęte w aplikacji!';
-      result.className = 'result success show';
-      btnDownload.textContent = audioOnly ? '↓ Pobierz MP3' : '↓ Pobierz film';
-      btnDownload.disabled = false;
-    } else {
-      throw new Error('Server error');
-    }
-  } catch (err) {
-    result.textContent = '❌ Błąd połączenia z aplikacją.';
-    result.className = 'result error show';
-    btnDownload.textContent = audioOnly ? '↓ Pobierz MP3' : '↓ Pobierz film';
-    btnDownload.disabled = false;
-  }
-
-  setTimeout(() => { result.className = 'result'; }, 4000);
-});
-
-// Init
-(async () => {
-  await checkConnection();
-  await getCurrentTab();
-})();
