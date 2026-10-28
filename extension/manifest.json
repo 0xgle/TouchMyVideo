@@ -2,11 +2,15 @@
   "manifest_version": 3,
   "name": "__MSG_extName__",
   "short_name": "TouchMyVideo",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "__MSG_extDescription__",
   "default_locale": "en",
   "minimum_chrome_version": "116",
-  "permissions": ["activeTab", "contextMenus", "storage"],
+  "permissions": [
+    "activeTab",
+    "contextMenus",
+    "storage"
+  ],
   "host_permissions": [
     "http://127.0.0.1:43210/*",
     "http://127.0.0.1:43211/*",
@@ -14,11 +18,24 @@
     "http://127.0.0.1:43213/*",
     "http://127.0.0.1:43214/*"
   ],
-  "background": { "service_worker": "background.js", "type": "module" },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
   "action": {
     "default_popup": "popup/popup.html",
     "default_title": "TouchMyVideo",
-    "default_icon": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
-  "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
 }

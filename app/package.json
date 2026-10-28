@@ -1,6 +1,6 @@
 {
   "name": "touchmyvideo",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Download your own videos — beautifully.",
   "author": "Mateusz Glegoła <mat.glegola@gmail.com>",
   "homepage": "https://github.com/0xgle/touchmyvideo",
@@ -92,14 +92,14 @@
       "target": [
         "dmg"
       ],
-      "icon": "assets/icon.png",
+      "icon": "assets/icon-1024.png",
       "category": "public.app-category.video"
     },
     "linux": {
       "target": [
         "AppImage"
       ],
-      "icon": "assets/icon.png",
+      "icon": "assets/icon-1024.png",
       "category": "AudioVideo"
     }
   }
